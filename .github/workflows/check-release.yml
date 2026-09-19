@@ -1,0 +1,45 @@
+name: Check for new Limusic release and trigger COPR rebuild
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # her gün 06:00 UTC
+  workflow_dispatch: {}     # elle de tetiklenebilsin diye
+
+permissions:
+  contents: write
+
+jobs:
+  check-and-trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest Limusic release tag
+        id: latest
+        run: |
+          TAG=$(curl -s https://api.github.com/repos/SimoHypers/limusic/releases/latest | jq -r .tag_name)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Compare with last known tag
+        id: compare
+        run: |
+          LAST=$(cat .last_built_tag 2>/dev/null || echo "")
+          if [ "$LAST" != "${{ steps.latest.outputs.tag }}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger COPR rebuild
+        if: steps.compare.outputs.changed == 'true'
+        run: curl -fsS -X POST "${{ secrets.COPR_WEBHOOK_URL }}"
+
+      - name: Update last built tag marker
+        if: steps.compare.outputs.changed == 'true'
+        run: |
+          echo "${{ steps.latest.outputs.tag }}" > .last_built_tag
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .last_built_tag
+          git commit -m "Track Limusic release ${{ steps.latest.outputs.tag }}"
+          git push
