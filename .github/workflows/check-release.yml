@@ -5,26 +5,29 @@ on:
     - cron: '0 6 * * *'   # daily at 06:00 UTC
   workflow_dispatch: {}    # allow manual runs too
 
-permissions:
-  contents: write
-
 jobs:
   check-and-trigger:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
       - name: Get latest Limusic release tag
         id: latest
         run: |
           TAG=$(curl -s https://api.github.com/repos/SimoHypers/limusic/releases/latest | jq -r .tag_name)
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Compare with last known tag
+      - name: Get latest successfully built COPR version
+        id: copr
+        run: |
+          RESPONSE=$(curl -s "https://copr.fedorainfracloud.org/api_3/package/list?ownername=oguzkarayemis&projectname=limusic&with_latest_build=true")
+          # source_package.version is "VERSION-RELEASE" (e.g. "0.7.3-1"); only take the version part
+          BUILT=$(echo "$RESPONSE" | jq -r '.items[0].builds.latest | select(.state=="succeeded") | .source_package.version' | cut -d'-' -f1)
+          echo "built=$BUILT" >> "$GITHUB_OUTPUT"
+
+      - name: Compare versions
         id: compare
         run: |
-          LAST=$(cat .last_built_tag 2>/dev/null || echo "")
-          if [ "$LAST" != "${{ steps.latest.outputs.tag }}" ]; then
+          if [ "${{ steps.copr.outputs.built }}" != "${{ steps.latest.outputs.version }}" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -36,24 +39,12 @@ jobs:
           WEBHOOK_URL: ${{ secrets.COPR_WEBHOOK_URL }}
         run: |
           if [ -z "$WEBHOOK_URL" ]; then
-            echo "::error::COPR_WEBHOOK_URL secret is empty or missing. Check repo Settings → Secrets and variables → Actions."
+            echo "::error::COPR_WEBHOOK_URL secret is empty or missing."
             exit 1
           fi
-          # -f kaldırıldı: hata durumunda COPR'nin döndürdüğü gövdeyi görebilmek için
           HTTP_STATUS=$(curl -sS -o /tmp/copr_response.txt -w "%{http_code}" -X POST "$WEBHOOK_URL")
           echo "HTTP status: $HTTP_STATUS"
-          echo "Response body:"
           cat /tmp/copr_response.txt
           if [ "$HTTP_STATUS" -ge 400 ]; then
             exit 1
           fi
-
-      - name: Update last built tag marker
-        if: steps.compare.outputs.changed == 'true'
-        run: |
-          echo "${{ steps.latest.outputs.tag }}" > .last_built_tag
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .last_built_tag
-          git commit -m "Track Limusic release ${{ steps.latest.outputs.tag }}"
-          git push
