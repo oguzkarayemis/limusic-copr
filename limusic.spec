@@ -20,7 +20,6 @@ Limusic is a desktop YouTube Music client written with Tauri, Rust and SvelteKit
 
 %build
 
-
 %install
 rm -rf %{buildroot}
 mkdir -p %{buildroot}
@@ -28,13 +27,9 @@ rpm2cpio %{SOURCE0} | (cd %{buildroot} && cpio -idm)
 
 %files
 /usr/bin/limusic-app
-/usr/share/applications/limusic.desktop
-/usr/share/icons/hicolor/32x32/apps/limusic-app.png
-/usr/share/icons/hicolor/64x64/apps/limusic-app.png
-/usr/share/icons/hicolor/128x128/apps/limusic-app.png
-/usr/share/icons/hicolor/256x256@2/apps/limusic-app.png
-/usr/share/icons/hicolor/512x512/apps/limusic-app.png
+/usr/share/applications/*
+/usr/share/icons/hicolor/*/apps/limusic-app.png
 
 %changelog
-* Thu Sep 17 2026 Oguz <oguzkarayemis@gmail.com> - %{limusic_version}-1
-- Upstream release v%{limusic_version} yeniden paketlendi.
+* CHANGELOG_DATE_PLACEHOLDER Oguz <oguzkarayemis@gmail.com> - %{limusic_version}-1
+- Upstream release v%{limusic_version} repackaged.
