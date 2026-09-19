@@ -39,7 +39,14 @@ jobs:
             echo "::error::COPR_WEBHOOK_URL secret is empty or missing. Check repo Settings → Secrets and variables → Actions."
             exit 1
           fi
-          curl -fsS -X POST "$WEBHOOK_URL"
+          # -f kaldırıldı: hata durumunda COPR'nin döndürdüğü gövdeyi görebilmek için
+          HTTP_STATUS=$(curl -sS -o /tmp/copr_response.txt -w "%{http_code}" -X POST "$WEBHOOK_URL")
+          echo "HTTP status: $HTTP_STATUS"
+          echo "Response body:"
+          cat /tmp/copr_response.txt
+          if [ "$HTTP_STATUS" -ge 400 ]; then
+            exit 1
+          fi
 
       - name: Update last built tag marker
         if: steps.compare.outputs.changed == 'true'
