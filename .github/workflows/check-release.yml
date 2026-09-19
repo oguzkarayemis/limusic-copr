@@ -2,8 +2,8 @@ name: Check for new Limusic release and trigger COPR rebuild
 
 on:
   schedule:
-    - cron: '0 6 * * *'   # her gün 06:00 UTC
-  workflow_dispatch: {}     # elle de tetiklenebilsin diye
+    - cron: '0 6 * * *'   # daily at 06:00 UTC
+  workflow_dispatch: {}    # allow manual runs too
 
 permissions:
   contents: write
@@ -32,7 +32,14 @@ jobs:
 
       - name: Trigger COPR rebuild
         if: steps.compare.outputs.changed == 'true'
-        run: curl -fsS -X POST "${{ secrets.COPR_WEBHOOK_URL }}"
+        env:
+          WEBHOOK_URL: ${{ secrets.COPR_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "::error::COPR_WEBHOOK_URL secret is empty or missing. Check repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          curl -fsS -X POST "$WEBHOOK_URL"
 
       - name: Update last built tag marker
         if: steps.compare.outputs.changed == 'true'
